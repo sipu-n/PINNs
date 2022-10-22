@@ -3,6 +3,7 @@
 """
 
 import sys
+import matplotlib
 sys.path.insert(0, '../../Utilities/')
 
 import tensorflow as tf
@@ -17,10 +18,8 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from plotting import newfig, savefig
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
-
 np.random.seed(1234)
 tf.set_random_seed(1234)
-
 class PhysicsInformedNN:
     # Initialize the class
     def __init__(self, x, y, t, u, v, layers):
