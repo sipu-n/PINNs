@@ -1,218 +1,161 @@
-"""
-@author: Maziar Raissi
-"""
-# imported the libraries
+from mimetypes import init
 import sys
-import matplotlib
-sys.path.insert(0, '../../Utilities/')
-
+sys.path.insert(0,'..')
+from tkinter.messagebox import NO
+import matplotlib.pyplot as plt
+from requests import options
+sys.path.insert(0,'C:/Users/srbeh/Desktop/Final Year Project/git/v1/PINNs/Utilities')
 import tensorflow as tf
 import numpy as np
-import matplotlib.pyplot as plt
-import scipy.io
+import scipy as sc
+import scipy.io as sio
 from scipy.interpolate import griddata
 import time
 from itertools import product, combinations
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-from plotting import newfig, savefig
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
 np.random.seed(1234)
-tf.set_random_seed(1234)
-#started writing the class for the PINN
-"""The input are x,y,t,u,v but layers, self mane kana
- jana nahi __init__ function purpose dekh"""
-class PhysicsInformedNN:
-    # Initialize the class
-    def __init__(self, x, y, t, u, v, layers):      # __init__ khali use hue to set the attributes of the object 
-        
-        X = np.concatenate([x, y, t], 1)        # matrix ku concatenate karla so x,y,t matrix form re achi at cap X achi dekh
-        
-        self.lb = X.min(0)     # lb hela lower bound cap X ra
-        self.ub = X.max(0)      # ub hela upper bound cap X ra 
-        self.X = X              # purpose of self keyword
-        self.x = X[:,0:1]       # just use self it increases the readability of the code
-        self.y = X[:,1:2]
-        self.t = X[:,2:3]
-        
-        self.u = u
-        self.v = v
-        
-        self.layers = layers
-        
-        # Initialize NN
-        self.weights, self.biases = self.initialize_NN(layers)        # all the variable here need to use the keyword self as it imporves the readablity 
-        # so weights and biases are initialised
-        # Initialize parameters
-        self.lambda_1 = tf.Variable([0.0], dtype=tf.float32)
-        self.lambda_2 = tf.Variable([0.0], dtype=tf.float32)
-        
-        # tf placeholders and graph
-        self.sess = tf.Session(config=tf.ConfigProto(allow_soft_placement=True,
-                                                     log_device_placement=True))
-        
-        self.x_tf = tf.placeholder(tf.float32, shape=[None, self.x.shape[1]])
-        self.y_tf = tf.placeholder(tf.float32, shape=[None, self.y.shape[1]])
-        self.t_tf = tf.placeholder(tf.float32, shape=[None, self.t.shape[1]])
-        
-        self.u_tf = tf.placeholder(tf.float32, shape=[None, self.u.shape[1]])
-        self.v_tf = tf.placeholder(tf.float32, shape=[None, self.v.shape[1]])
-        
-        self.u_pred, self.v_pred, self.p_pred, self.f_u_pred, self.f_v_pred = self.net_NS(self.x_tf, self.y_tf, self.t_tf)
-        
-        self.loss = tf.reduce_sum(tf.square(self.u_tf - self.u_pred)) + \
-                    tf.reduce_sum(tf.square(self.v_tf - self.v_pred)) + \
-                    tf.reduce_sum(tf.square(self.f_u_pred)) + \
+tf.random.set_seed(1234)
+class pinn:
+    def __init__(self,x,y,t,u,v,layers) -> None:
+        X=np.concatenate([x,y,t],1)
+        self.lb=X.min(0)
+        self.ub=X.max(0)
+        self.X=X 
+        self.x=X[:,0:1]
+        self.y=X[:,1:2]
+        self.t=X[:,2:3]
+        self.u=u 
+        self.v=v 
+        self.layers = layers 
+        self.weights, self.biases= self.initialize_NN(layers)
+        self.lambda_1= tf.Variable([0.0],dtype=tf.float32)
+        self.lambda_2=tf.Variable([0.0],dtype=tf.float32)
+        self.sess=tf.compat.v1.Session(config=tf.compat.v1.ConfigProto(tf.config.set_soft_device_placement(enabled=True),tf.debugging.set_log_device_placement(enabled=True)))
+        self.x_tf=tf.compat.v1.placeholder(tf.float32,shape=[None,self.x.shape[1]])
+        self.y_tf=tf.compat.v1.placeholder(tf.float32,shape=[None, self.y.shape[1]])
+        self.t_tf = tf.compat.v1.placeholder(tf.float32, shape=[None, self.t.shape[1]])
+        self.u_tf = tf.compat.v1.placeholder(tf.float32, shape=[None, self.u.shape[1]])
+        self.v_tf = tf.compat.v1.placeholder(tf.float32, shape=[None, self.v.shape[1]])
+        self.u_pred,self.v_pred,self.p_pred,self.f_u_pred,self.f_v_pred=self.net_NS(self.x_tf,self.y_tf,self.t_tf)
+        self.loss=tf.reduce_sum(tf.square(self.u_tf-self.u_pred))+\
+            tf.reduce_sum(tf.square(self.v_tf-self.v_pred))+\
+                tf.reduce_sum(tf.square(self.f_u_pred))+\
                     tf.reduce_sum(tf.square(self.f_v_pred))
-    
-        self.optimizer = tf.contrib.opt.ScipyOptimizerInterface(self.loss, 
-                                                                method = 'L-BFGS-B', 
-                                                                options = {'maxiter': 50000,
-                                                                           'maxfun': 50000,
-                                                                           'maxcor': 50,
-                                                                           'maxls': 50,
-                                                                           'ftol' : 1.0 * np.finfo(float).eps})        
-        
-        self.optimizer_Adam = tf.train.AdamOptimizer()
-        self.train_op_Adam = self.optimizer_Adam.minimize(self.loss)                    
-        
-        init = tf.global_variables_initializer()
+        self.optimizer= tf.compat.v1.train.Optimizer(self.loss,
+                                                     method='L-BFGS-B',
+                                                     options={'maxiter':50000,
+                                                              'maxfun':50000,
+                                                              'maxcor':50,
+                                                              'maxls':50,
+                                                              'ftol':1.0*np.np.finfo(float).eps
+                                                              }
+                                                        )
+        self.optimizer_Adam=tf.train.AdamOptimizer()
+        self.train_op_Adam= self.optimizer_Adam.minimize(self.loss)
+        init= tf.compat.v1.global_variables_initializer()
         self.sess.run(init)
-
-    def initialize_NN(self, layers):        
-        weights = []
-        biases = []
-        num_layers = len(layers) 
+        pass
+    def initialize_NN(self,layers):
+        weights=[]
+        biases=[]
+        num_layers=len(layers)
         for l in range(0,num_layers-1):
-            W = self.xavier_init(size=[layers[l], layers[l+1]])
-            b = tf.Variable(tf.zeros([1,layers[l+1]], dtype=tf.float32), dtype=tf.float32)
+            W=self.xavier_init(size=[layers[l],layers[l+1]])
+            b=tf.Variable(tf.zeros([1,layers[l+1]],dtype=tf.float32),dtype=tf.float32)
             weights.append(W)
-            biases.append(b)        
-        return weights, biases
-        
+            biases.append(b)
+        return weights, biases 
     def xavier_init(self, size):
         in_dim = size[0]
         out_dim = size[1]        
         xavier_stddev = np.sqrt(2/(in_dim + out_dim))
-        return tf.Variable(tf.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32)
-    def neural_net(self, X, weights, biases):
-        num_layers = len(weights) + 1
-        
-        H = 2.0*(X - self.lb)/(self.ub - self.lb) - 1.0
+        return tf.Variable(tf.compat.v1.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32)
+    def neural_net(self,X,weights,biases):
+        num_layers=len(weights)+1
+        H=2.0*(X-self.lb)/(self.ub-self.lb)-1.0
         for l in range(0,num_layers-2):
-            W = weights[l]
-            b = biases[l]
-            H = tf.tanh(tf.add(tf.matmul(H, W), b))
-        W = weights[-1]
-        b = biases[-1]
-        Y = tf.add(tf.matmul(H, W), b)
-        return Y
-        
-    def net_NS(self, x, y, t):
-        lambda_1 = self.lambda_1
-        lambda_2 = self.lambda_2
-        
-        psi_and_p = self.neural_net(tf.concat([x,y,t], 1), self.weights, self.biases)
-        psi = psi_and_p[:,0:1]
-        p = psi_and_p[:,1:2]
-        
-        u = tf.gradients(psi, y)[0]
-        v = -tf.gradients(psi, x)[0]  
-        
-        u_t = tf.gradients(u, t)[0]
-        u_x = tf.gradients(u, x)[0]
-        u_y = tf.gradients(u, y)[0]
-        u_xx = tf.gradients(u_x, x)[0]
-        u_yy = tf.gradients(u_y, y)[0]
-        
-        v_t = tf.gradients(v, t)[0]
-        v_x = tf.gradients(v, x)[0]
-        v_y = tf.gradients(v, y)[0]
-        v_xx = tf.gradients(v_x, x)[0]
-        v_yy = tf.gradients(v_y, y)[0]
-        
-        p_x = tf.gradients(p, x)[0]
-        p_y = tf.gradients(p, y)[0]
-
-        f_u = u_t + lambda_1*(u*u_x + v*u_y) + p_x - lambda_2*(u_xx + u_yy) 
-        f_v = v_t + lambda_1*(u*v_x + v*v_y) + p_y - lambda_2*(v_xx + v_yy)
-        
-        return u, v, p, f_u, f_v
-    
-    def callback(self, loss, lambda_1, lambda_2):
-        print('Loss: %.3e, l1: %.3f, l2: %.5f' % (loss, lambda_1, lambda_2))
-      
-    def train(self, nIter): 
-
-        tf_dict = {self.x_tf: self.x, self.y_tf: self.y, self.t_tf: self.t,
-                   self.u_tf: self.u, self.v_tf: self.v}
-        
-        start_time = time.time()
+            W=weights[l]
+            b=biases[l]
+            H=tf.tanh(tf.add(tf.matmul(H,W),b))
+        W=weights[-1]
+        b=biases[-1]
+        Y=tf.add(tf.matmul(H,W),b)
+        return Y 
+    def net_NS(self,x,y,t):
+        lambda_1=self.lambda_1
+        lambda_2=self.lambda_2 
+        psi_and_p = self.neural_net(tf.concat([x,y,t],1),self.weights,self.biases)
+        psi=psi_and_p[:,0:1]
+        p=psi_and_p[:,1:2]
+        u=tf.gradients(psi,y)[0]
+        v=-tf.gradients(psi,x)[0]
+        u_t=tf.gradients(u,t)[0]
+        u_x=tf.gradients(u,x)[0]
+        u_y=tf.gradients(u,y)[0]
+        u_xx=tf.gradients(u_x,x)[0]
+        u_yy=tf.gradients(u_y,y)[0]
+        v_t=tf.gradients(v,t)[0]
+        v_x=tf.gradients(v,x)[0]
+        v_y=tf.gradients(v,y)[0]
+        v_xx=tf.gradients(v_x,x)[0]
+        v_yy=tf.gradients(v_y,y)[0]
+        p_x=tf.gradients(p,x)[0]
+        p_y=tf.gradients(p,y)[0]
+        f_u=u_t + lambda_1 * (u*u_x+v*u_y) + p_x - lambda_2*(u_xx+u_yy)
+        f_v=v_t + lambda_1*(u*v_x + v*v_y) + p_y- lambda_2*(v_xx+ v_yy)
+        return u,v,p,f_u,f_v
+    def callback(self,loss,lambda_1,lambda_2):
+        print('Loss %.3e, l1: %.3f, l2:%.5f' % (loss, lambda_1,lambda_2))
+    def train(self,nIter):
+        tf_dict={self.x_tf:self.x, self.y_tf:self.y, self.t_tf:self.t,
+                 self.u_tf:self.u , self.v_tf:self.v}
+        start_time=time.time()
         for it in range(nIter):
-            self.sess.run(self.train_op_Adam, tf_dict)
-            
-            # Print
-            if it % 10 == 0:
-                elapsed = time.time() - start_time
-                loss_value = self.sess.run(self.loss, tf_dict)
+            self.sess.run(self.train_op_Adam,tf_dict)
+            if it % 10 ==0:
+                elapsed= time.time() - start_time
+                loss_value=self.sess.run(self.loss,tf_dict)
                 lambda_1_value = self.sess.run(self.lambda_1)
                 lambda_2_value = self.sess.run(self.lambda_2)
-                print('It: %d, Loss: %.3e, l1: %.3f, l2: %.5f, Time: %.2f' % 
-                      (it, loss_value, lambda_1_value, lambda_2_value, elapsed))
-                start_time = time.time()
-            
-        self.optimizer.minimize(self.sess,
-                                feed_dict = tf_dict,
-                                fetches = [self.loss, self.lambda_1, self.lambda_2],
-                                loss_callback = self.callback)
-            
-    
-    def predict(self, x_star, y_star, t_star):
-        
-        tf_dict = {self.x_tf: x_star, self.y_tf: y_star, self.t_tf: t_star}
-        
-        u_star = self.sess.run(self.u_pred, tf_dict)
-        v_star = self.sess.run(self.v_pred, tf_dict)
-        p_star = self.sess.run(self.p_pred, tf_dict)
-        
-        return u_star, v_star, p_star
-
-def plot_solution(X_star, u_star, index):
-    
-    lb = X_star.min(0)
-    ub = X_star.max(0)
-    nn = 200
-    x = np.linspace(lb[0], ub[0], nn)
-    y = np.linspace(lb[1], ub[1], nn)
-    X, Y = np.meshgrid(x,y)
-    
-    U_star = griddata(X_star, u_star.flatten(), (X, Y), method='cubic')
-    
-    plt.figure(index)
-    plt.pcolor(X,Y,U_star, cmap = 'jet')
-    plt.colorbar()
-    
-    
-def axisEqual3D(ax):
-    extents = np.array([getattr(ax, 'get_{}lim'.format(dim))() for dim in 'xyz'])
-    sz = extents[:,1] - extents[:,0]
-    centers = np.mean(extents, axis=1)
-    maxsize = max(abs(sz))
-    r = maxsize/4
-    for ctr, dim in zip(centers, 'xyz'):
-        getattr(ax, 'set_{}lim'.format(dim))(ctr - r, ctr + r)
-        
-        
+                print('It: %d, Loss: %.3e, l1: %.3f , l2: %.5f, Time: %.2f' %(it,loss_value,lambda_1_value,lambda_2_value,elapsed))
+                start_time=time.time()
+        self.optimizer.minimize(self.sess,feed_dict=tf_dict,
+                                fetches=[self.loss ,self.lambda_1,self.lambda_2],
+                                loss_callback=self.callback)
+    def predict(self,x_star,y_star,t_star):
+        tf_dict= {self.x_tf:x_star, self.y_tf:y_star, self.t_tf:t_star}
+        u_star=self.sess.run(self.u_pred, tf_dict)
+        v_star=self.sess.run(self.v_pred, tf_dict)
+        p_star=self.sess.run(self.p_pred,tf_dict)
+        return u_star, v_star ,p_star 
+    def plot_solution(X_star,u_star,index):
+        lb=X_star.min(0)
+        ub=X_star.max(0)
+        nn=200
+        x=np.linspace(lb[0],ub[0],nn)
+        y=np.linspace(lb[1],ub[1],nn)
+        X,Y= np.meshgrid(x,y)
+        U_star=griddata(X_star,u_star.flatten(),(X,Y),method='cubic')
+        plt.figure(index)
+        plt.pcolor(X,Y,U_star,cmap='jet')
+        plt.colorbar()
+    def axisEqual3D(ax):
+        extents= np.array([getattr(ax,'get_{}lim'.format(dim))() for dim in 'xyz'])
+        sz=extents[:,1]-extents[:,0]
+        centers=np.mean(extents,axis=1)
+        maxsize=max(abs(sz))
+        r=maxsize/4
+        for ctr,dim in zip(centers,'xyz'):
+            getattr(ax,'set_{}lim'.format(dim))(ctr-r,ctr+r)
 if __name__ == "__main__": 
-      
     N_train = 5000
-    
     layers = [3, 20, 20, 20, 20, 20, 20, 20, 20, 2]
     
     # Load Data
-    data = scipy.io.loadmat('../Data/cylinder_nektar_wake.mat')
-           
+    data = sio.loadmat('C:/Users/srbeh/Desktop/Final Year Project/git/v1/PINNs/main/Data/cylinder_nektar_wake.mat')         
     U_star = data['U_star'] # N x 2 x T
     P_star = data['p_star'] # N x T
     t_star = data['t'] # T x 1
@@ -250,7 +193,7 @@ if __name__ == "__main__":
     v_train = v[idx,:]
 
     # Training
-    model = PhysicsInformedNN(x_train, y_train, t_train, u_train, v_train, layers)
+    model = pinn(x=x_train, y=y_train, t=t_train, u=u_train, v=v_train, layers=layers)
     model.train(200000)
     
     # Test Data
@@ -311,26 +254,26 @@ if __name__ == "__main__":
     v_train = v_train + noise*np.std(v_train)*np.random.randn(v_train.shape[0], v_train.shape[1])    
 
     # Training
-    model = PhysicsInformedNN(x_train, y_train, t_train, u_train, v_train, layers)
+    model = pinn(x_train, y_train, t_train, u_train, v_train, layers)
     model.train(200000)
         
     lambda_1_value_noisy = model.sess.run(model.lambda_1)
     lambda_2_value_noisy = model.sess.run(model.lambda_2)
-      
+    
     error_lambda_1_noisy = np.abs(lambda_1_value_noisy - 1.0)*100
     error_lambda_2_noisy = np.abs(lambda_2_value_noisy - 0.01)/0.01 * 100
         
     print('Error l1: %.5f%%' % (error_lambda_1_noisy))                             
     print('Error l2: %.5f%%' % (error_lambda_2_noisy))     
 
-             
+            
     
     ######################################################################
     ############################# Plotting ###############################
     ######################################################################    
-     # Load Data
-    data_vort = scipy.io.loadmat('../Data/cylinder_nektar_t0_vorticity.mat')
-           
+    # Load Data
+    data_vort = sc.io.loadmat('../Data/cylinder_nektar_t0_vorticity.mat')
+        
     x_vort = data_vort['x'] 
     y_vort = data_vort['y'] 
     w_vort = data_vort['w'] 
@@ -344,7 +287,7 @@ if __name__ == "__main__":
     box_lb = np.array([1.0, -2.0])
     box_ub = np.array([8.0, 2.0])
     
-    fig, ax = newfig(1.0, 1.2)
+    fig, ax = sc.newfig(1.0, 1.2)
     ax.axis('off')
     
     ####### Row 0: Vorticity ##################    
@@ -386,7 +329,7 @@ if __name__ == "__main__":
 
     ax.scatter(x_train, t_train, y_train, s = 0.1)
     ax.contourf(X,UU_star,Y, zdir = 'y', offset = t_star.mean(), cmap='rainbow', alpha = 0.8)
-              
+            
     ax.text(x_star.mean(), data['t'].min() - 1, y_star.min() - 1, '$x$')
     ax.text(x_star.max()+1, data['t'].mean(), y_star.min() - 1, '$t$')
     ax.text(x_star.min()-1, data['t'].min() - 0.5, y_star.mean(), '$y$')
@@ -394,7 +337,7 @@ if __name__ == "__main__":
     ax.set_xlim3d(r1)
     ax.set_ylim3d(r2)
     ax.set_zlim3d(r3)
-    axisEqual3D(ax)
+    pinn.axisEqual3D(ax)
     
     ########      v(t,x,y)     ###################        
     ax = plt.subplot(gs1[:, 1],  projection='3d')
@@ -410,7 +353,7 @@ if __name__ == "__main__":
 
     ax.scatter(x_train, t_train, y_train, s = 0.1)
     ax.contourf(X,VV_star,Y, zdir = 'y', offset = t_star.mean(), cmap='rainbow', alpha = 0.8)
-              
+            
     ax.text(x_star.mean(), data['t'].min() - 1, y_star.min() - 1, '$x$')
     ax.text(x_star.max()+1, data['t'].mean(), y_star.min() - 1, '$t$')
     ax.text(x_star.min()-1, data['t'].min() - 0.5, y_star.mean(), '$y$')
@@ -418,12 +361,12 @@ if __name__ == "__main__":
     ax.set_xlim3d(r1)
     ax.set_ylim3d(r2)
     ax.set_zlim3d(r3)
-    axisEqual3D(ax)
+    pinn.axisEqual3D(ax)
     
-    # savefig('./figures/NavierStokes_data') 
+    plt.savefig('./figures/NavierStokes_data') 
 
     
-    fig, ax = newfig(1.015, 0.8)
+    fig, ax = sc.newfig(1.015, 0.8)
     ax.axis('off')
     
     ######## Row 2: Pressure #######################
@@ -432,8 +375,8 @@ if __name__ == "__main__":
     gs2.update(top=1, bottom=1-1/2, left=0.1, right=0.9, wspace=0.5)
     ax = plt.subplot(gs2[:, 0])
     h = ax.imshow(PP_star, interpolation='nearest', cmap='rainbow', 
-                  extent=[x_star.min(), x_star.max(), y_star.min(), y_star.max()], 
-                  origin='lower', aspect='auto')
+                extent=[x_star.min(), x_star.max(), y_star.min(), y_star.max()], 
+                origin='lower', aspect='auto')
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
 
@@ -446,8 +389,8 @@ if __name__ == "__main__":
     ########     Exact p(t,x,y)     ########### 
     ax = plt.subplot(gs2[:, 1])
     h = ax.imshow(P_exact, interpolation='nearest', cmap='rainbow', 
-                  extent=[x_star.min(), x_star.max(), y_star.min(), y_star.max()], 
-                  origin='lower', aspect='auto')
+                extent=[x_star.min(), x_star.max(), y_star.min(), y_star.max()], 
+                origin='lower', aspect='auto')
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
 
@@ -484,8 +427,16 @@ if __name__ == "__main__":
     s = s + r' \end{array}$ \\ '
     s = s + r' \hline'
     s = s + r' \end{tabular}$'
- 
+
     ax.text(0.015,0.0,s)
     
-    # savefig('./figures/NavierStokes_prediction') 
+    plt.savefig('./figures/NavierStokes_prediction') 
 
+            
+            
+            
+                
+            
+            
+        
+        
