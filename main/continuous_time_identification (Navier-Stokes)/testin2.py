@@ -178,24 +178,24 @@ if __name__ == "__main__":
     t_star = data['t'] # T x 1
     X_star = data['X_star'] # N x 2
     
-    N = X_star.shape[0]
+    N = X_star.shape[0]    #basically N and T value nela from the dataframe
     T = t_star.shape[0]
     
     # Rearrange Data 
-    XX = np.tile(X_star[:,0:1], (1,T)) # N x T
-    YY = np.tile(X_star[:,1:2], (1,T)) # N x T
-    TT = np.tile(t_star, (1,N)).T # N x T
+    XX = np.tile(X_star[:,0:1], (1,T)) # N x T #first column taku XX re and 2nd ku YY re pakeila
+    YY = np.tile(X_star[:,1:2], (1,T)) # N x T eie gote array dauchi (1,T) matrix die and elements sabue jagare asijae seita
+    TT = np.tile(t_star, (1,N)).T # N x T    ethi bhi same kala just transverse kala 
     
-    UU = U_star[:,0,:] # N x T
-    VV = U_star[:,1,:] # N x T
-    PP = P_star # N x T
+    UU = U_star[:,0,:] # N x T      # alreadt N*T achi 
+    VV = U_star[:,1,:] # N x T    same here 
+    PP = P_star # N x T             same here 
     
-    x = XX.flatten()[:,None] # NT x 1
-    y = YY.flatten()[:,None] # NT x 1
-    t = TT.flatten()[:,None] # NT x 1
+    x = XX.flatten()[:,None] # NT x 1   # ethi just flatten karidela
+    y = YY.flatten()[:,None] # NT x 1 so logic heal gote common shape ku aniki tapre flatten karide
+    t = TT.flatten()[:,None] # NT x 1   eguda input gudaka
     
     u = UU.flatten()[:,None] # NT x 1
-    v = VV.flatten()[:,None] # NT x 1
+    v = VV.flatten()[:,None] # NT x 1   eguda output gudaka
     p = PP.flatten()[:,None] # NT x 1
     
     ######################################################################
@@ -204,20 +204,20 @@ if __name__ == "__main__":
     # Training Data    
     idx = np.random.choice(N*T, N_train, replace=False)
     x_train = x[idx,:]
-    y_train = y[idx,:]
-    t_train = t[idx,:]
+    y_train = y[idx,:]      # basically random data choose hauchi au kichi nahin
+    t_train = t[idx,:]      # training gudaka tapre padiba amra function re bas sarla
     u_train = u[idx,:]
     v_train = v[idx,:]
 
     # Training
     model = pinn(x=x_train, y=y_train, t=t_train, u=u_train, v=v_train, layers=layers)
-    model.train(200000)
+    model.train(200000)   # ethi model amra train heigalani
     
     # Test Data
     snap = np.array([100])
     x_star = X_star[:,0:1]
-    y_star = X_star[:,1:2]
-    t_star = TT[:,snap]
+    y_star = X_star[:,1:2]   # ebe prediction pain test data baneilu
+    t_star = TT[:,snap]         # tapre yaku use kariki predicition kalu 
     
     u_star = U_star[:,0,snap]
     v_star = U_star[:,1,snap]
@@ -225,31 +225,31 @@ if __name__ == "__main__":
     
     # Prediction
     u_pred, v_pred, p_pred = model.predict(x_star, y_star, t_star)
-    lambda_1_value = model.sess.run(model.lambda_1)
-    lambda_2_value = model.sess.run(model.lambda_2)
+    lambda_1_value = model.sess.run(model.lambda_1)  # ethi ame lambda_1 value gudaka kadhu model ru
+    lambda_2_value = model.sess.run(model.lambda_2)     # train kala pare segudaka optimize heijaichi
     
     # Error
-    error_u = np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2)
-    error_v = np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2)
+    error_u = np.linalg.norm(u_star-u_pred,2)/np.linalg.norm(u_star,2) # kichi nahi think as simple error formula and nothing else
+    error_v = np.linalg.norm(v_star-v_pred,2)/np.linalg.norm(v_star,2) # measuring deviation from orginal value
     error_p = np.linalg.norm(p_star-p_pred,2)/np.linalg.norm(p_star,2)
 
-    error_lambda_1 = np.abs(lambda_1_value - 1.0)*100
-    error_lambda_2 = np.abs(lambda_2_value - 0.01)/0.01 * 100
+    error_lambda_1 = np.abs(lambda_1_value - 1.0)*100           # similarly lambda 1 and 2 value re kadhichi here 
+    error_lambda_2 = np.abs(lambda_2_value - 0.01)/0.01 * 100   # same kichi nahi 
     
     print('Error u: %e' % (error_u))    
-    print('Error v: %e' % (error_v))    
+    print('Error v: %e' % (error_v))       # error value gudaka print kala au kichi nahi
     print('Error p: %e' % (error_p))    
     print('Error l1: %.5f%%' % (error_lambda_1))                             
     print('Error l2: %.5f%%' % (error_lambda_2))                  
     
     # Plot Results
-#    plot_solution(X_star, u_pred, 1)
+#    plot_solution(X_star, u_pred, 1)               # gote katha hela ki amra cylinder data re X star P star Ustar t achi ethi X_star input re jae , P_star and U_star output re jae
 #    plot_solution(X_star, v_pred, 2)
-#    plot_solution(X_star, p_pred, 3)    
+#    plot_solution(X_star, p_pred, 3)               # ethi plot kala au kichi nahi
 #    plot_solution(X_star, p_star, 4)
 #    plot_solution(X_star, p_star - p_pred, 5)
     
-    # Predict for plotting
+    # Predict for plotting                          # plotting part ta chadide badme figure out karidabu nonsense jinsa ta
     lb = X_star.min(0)
     ub = X_star.max(0)
     nn = 200
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     P_exact = griddata(X_star, p_star.flatten(), (X, Y), method='cubic')
     
    
-    ######################################################################
+    #######purbaru noisless data use heithil ethi kintu noise data use heichi 1st upra ta sare tapre ethiki asibu###############################################################
     ########################### Noisy Data ###############################
     ######################################################################
     noise = 0.01        

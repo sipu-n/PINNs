@@ -2,7 +2,7 @@ import tensorflow as tf
 from tensorflow import keras 
 import pandas as pd 
 import matplotlib.pyplot as plt 
-model=keras.Sequential([keras.layers.Dense(100,activation='relu',input_shape=(13,1)),
+model=keras.Sequential([keras.layers.Dense(100,activation='relu'),
                        keras.layers.Dense(100,activation='relu'),
                        keras.layers.Dense(10,activation='relu'),
                        keras.layers.Dense(4,activation='relu'),
@@ -19,10 +19,10 @@ def loss_fun(self,hw,hs,pw,ps,beta,lam):
     phihs=(hs-hmin)/(hmax-hmin)
     phihw=(hw-hmin)/(hmax-hmin)
     X=x/z 
-    phimwprime=tf.gradients(phimw,X)
-    phimsprime=tf.gradients(phims,X)
-    phihwprime=tf.gradients(phihw,X)
-    phihsprime=tf.gradients(phihs,X)
+    phimwprime=tf.gradients(phimw,X)[0]
+    phimsprime=tf.gradients(phims,X)[0]
+    phihwprime=tf.gradients(phihw,X)[0]
+    phihsprime=tf.gradients(phihs,X)[0]
     f1=(lambda_1*(phims-phimw))-phimwprime
     f2=(lambda_1*(phimw-phims)*beta)-phimsprime
     f3=(lambda_2*(phihs-phihw))+(lambda_1*beta*lam/(hs-hw))-phihwprime
